@@ -3,9 +3,6 @@ var express = require('express');
 var bcrypt = require('bcryptjs');
 var jwt = require('jsonwebtoken');
 
-// Token Secret
-var SEED = require('../config/config').SEED;
-
 // Inicializar variables
 var app = express();
 
@@ -13,10 +10,28 @@ var app = express();
 var Usuario = require('../models/usuario');
 
 // Google
-const {OAuth2Client} = require('google-auth-library');
-const client = new OAuth2Client(CLIENT_ID);
-var CLIENT_ID = require('../config/config').CLIENT_ID;
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client(CLIENT_ID); // GOOGLE_CLIENT_ID
+var CLIENT_ID = require('../config/config').CLIENT_ID; // GOOGLE_SECRET
 
+// Middleware
+var mdAutenticacion = require('../middlewares/autenticacion');
+
+// Token Secret
+var SEED = require('../config/config').SEED;
+
+// ========================================================
+// Renovacion del Token
+// ========================================================
+app.get('/renuevatoken', mdAutenticacion.verificaToken, (req, res) => {
+    var token = jwt.sign({ usuario: req.usuario }, SEED, { expiresIn: 3600 }); // 1 hora
+
+    res.status(200).json({
+        ok: true,
+        // usuario: resp.usuario,
+        token: token
+    });
+});
 // ========================================================
 // Autenticacion Google
 // ========================================================
@@ -74,11 +89,12 @@ app.post('/google', async(req, res) => {
                     ok: true,
                     usuario: usuarioDB,
                     token: token,
-                    id: usuarioDB._id
+                    id: usuarioDB._id,
+                    menu: optenerMenu( usuarioDB.role )
                 });
             }
         } else {
-            // El usuario no existe... hay que crearlo
+            // El usuario no existe por correo... hay que crearlo
             var usuario = new Usuario();
 
             usuario.nombre = googleUser.nombre;
@@ -94,7 +110,8 @@ app.post('/google', async(req, res) => {
                     ok: true,
                     usuario: usuarioDB,
                     token: token,
-                    id: usuarioDB._id
+                    id: usuarioDB._id,
+                    menu: optenerMenu( usuarioDB.role )
                 });
             });
         }
@@ -146,9 +163,65 @@ app.post('/', (req, res) => {
             ok: true,
             usuario: usuarioDB,
             token: token,
-            id: usuarioDB._id
+            id: usuarioDB._id,
+            menu: optenerMenu( usuarioDB.role )
         });
     });
 });
+
+function optenerMenu( ROLE ) {
+    var menu = [
+        {
+          titulo: 'Principal',
+          icono: 'mdi mdi-gauge',
+          submenu: [
+            {
+              titulo: 'Dashdoard',
+              url: '/dashboard'
+            } ,
+            {
+              titulo: 'ProgressBar',
+              url: '/progress'
+            } ,
+            {
+              titulo: 'Gráficas',
+              url: '/graficas1'
+            } ,
+            {
+              titulo: 'Promesas',
+              url: '/promesas'
+            } ,
+            {
+              titulo: 'RxJs',
+              url: '/rxjs'
+            }
+          ]
+        },
+        {
+          titulo: 'Mantenimiento',
+          icono: 'mdi mdi-folder-lock-open',
+          submenu: [
+            // {
+            //   titulo: 'Usuarios',
+            //   url: '/usuarios'
+            // } ,
+            {
+              titulo: 'Hospitales',
+              url: '/hospitales'
+            } ,
+            {
+              titulo: 'Medicos',
+              url: '/medicos'
+            }
+          ]
+        }
+      ];
+    
+    if ( ROLE === 'ADMIN_ROLE' ) {
+        menu[1].submenu.unshift( { titulo: 'Usuarios', url: '/usuarios' }  );
+    }
+    
+    return menu;
+}
 
 module.exports = app;
